@@ -62,7 +62,7 @@ node --test tests/core.test.js
 - **Reminders don't send themselves.** Ta7seel tells you what to send and when, and hands you the message — you press send. There is no email/SMS integration.
 - **No multi-user or accounts.** It's a single-user tool by design.
 - **Print is basic.** The print view is the invoice drawer, not a designed PDF invoice.
-- Needs internet for the first visit (font + pages); afterwards it works offline.
+- Needs internet for the first visit only; the Cairo font is bundled in `fonts/`, no third-party requests. Afterwards it works offline.
 
 ## License
 
