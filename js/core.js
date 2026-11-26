@@ -201,6 +201,9 @@
   function buildContext(invoice, client, settings, today) {
     var lang = (settings && settings.lang) || 'ar';
     var locale = lang === 'ar' ? 'ar-EG' : 'en-GB';
+    var days = daysOverdue(invoice, today);
+    var daysStr;
+    try { daysStr = new Intl.NumberFormat(locale).format(days); } catch (e) { daysStr = String(days); }
     return {
       client_name: client ? client.name : '',
       invoice_no: invoice.number || '',
@@ -208,7 +211,7 @@
       total: fmtMoney(+invoice.amount || 0, settings.currency, locale),
       due_date: fmtDate(invoice.dueDate, locale),
       issue_date: fmtDate(invoice.issueDate, locale),
-      days_overdue: String(daysOverdue(invoice, today)),
+      days_overdue: daysStr,
       business_name: settings.businessName || '',
       description: invoice.description || ''
     };
