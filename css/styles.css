@@ -245,6 +245,7 @@ td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; }
   opacity: 0; transition: opacity .2s;
 }
 .drawer-backdrop.show { opacity: 1; }
+.drawer[hidden], .drawer-backdrop[hidden] { display: none !important; }
 .drawer {
   position: fixed; z-index: 61; background: var(--paper);
   inset-block: 0; inset-inline-end: 0; width: min(460px, 100vw);
