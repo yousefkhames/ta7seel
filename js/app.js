@@ -1270,6 +1270,9 @@
     var seed = el('button', 'btn soft', '🧪 ' + esc(t('seed_sample')));
     seed.title = t('seed_hint');
     seed.onclick = function () {
+      if (state.invoices.length && !confirm(lang() === 'ar'
+        ? 'البيانات التجريبية هتستبدل بياناتك الحالية. متأكد؟'
+        : 'Sample data will replace your current data. Continue?')) return;
       seedSample();
       save(); applyBrand(); buildNav(); route(); toast(t('saved_toast'));
     };

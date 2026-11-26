@@ -37,6 +37,10 @@ Freelancers lose real money not because clients refuse to pay, but because follo
 | --- | --- |
 | ![Invoice](screenshots/invoice.png) | ![Settings](screenshots/settings.png) |
 
+| English (LTR) | Mobile |
+| --- | --- |
+| ![English dashboard](screenshots/dashboard-en.png) | ![Mobile](screenshots/mobile.png) |
+
 ## Tech
 
 Plain HTML/CSS/JS. No frameworks, no build step, no dependencies beyond a Google Font.
