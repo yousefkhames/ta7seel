@@ -15,6 +15,7 @@
     accent: '#0f766e',
     currency: 'EGP',
     lang: 'ar',
+    countryCode: '20',
     ladder: C.defaultLadder(),
     templates: JSON.parse(JSON.stringify(I.TEMPLATES))
   };
@@ -34,30 +35,17 @@
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (!raw) { state = freshState(); return; }
-      var parsed = JSON.parse(raw);
-      state = freshState();
-      if (parsed.settings) {
-        state.settings = Object.assign(state.settings, parsed.settings);
-        // deep-merge templates so new keys survive old backups
-        ['en', 'ar'].forEach(function (lng) {
-          state.settings.templates[lng] = Object.assign(
-            {}, I.TEMPLATES[lng], (parsed.settings.templates || {})[lng] || {});
-        });
-        if (!Array.isArray(state.settings.ladder) || !state.settings.ladder.length) {
-          state.settings.ladder = C.defaultLadder();
-        }
-      }
-      state.clients = Array.isArray(parsed.clients) ? parsed.clients : [];
-      state.invoices = Array.isArray(parsed.invoices) ? parsed.invoices : [];
-      state.reminders = Array.isArray(parsed.reminders) ? parsed.reminders : [];
+      state = C.sanitizeState(JSON.parse(raw), DEFAULT_SETTINGS, I.TEMPLATES);
     } catch (e) {
       console.warn('state load failed', e);
+      try { var bad = localStorage.getItem(STORE_KEY); if (bad) localStorage.setItem(STORE_KEY + '-damaged', bad); } catch (e2) {}
       state = freshState();
     }
   }
 
   function save() {
-    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch (e) { toast(lang() === 'ar' ? 'المساحة ممتلئة. صغّر اللوجو.' : 'Storage is full. Use a smaller logo.'); }
   }
 
   function today() { return C.todayStr(); }
@@ -538,7 +526,7 @@
     });
     clientSel.value = inv.clientId;
     var descIn = el('input'); descIn.value = inv.description || '';
-    var amtIn = el('input'); amtIn.type = 'number'; amtIn.min = '0'; amtIn.step = '0.01'; amtIn.value = inv.amount;
+    var amtIn = el('input'); amtIn.type = 'text'; amtIn.inputMode = 'decimal'; amtIn.value = inv.amount;
     var issueIn = el('input'); issueIn.type = 'date'; issueIn.value = inv.issueDate;
     var dueIn = el('input'); dueIn.type = 'date'; dueIn.value = inv.dueDate;
 
@@ -554,7 +542,7 @@
     openModal(existing ? t('edit_invoice') : t('add_invoice'), body, function () {
       var data = {
         clientId: clientSel.value,
-        amount: parseFloat(amtIn.value),
+        amount: C.parseAmount(amtIn.value),
         issueDate: issueIn.value,
         dueDate: dueIn.value
       };
@@ -681,7 +669,7 @@
       var copy = el('button', 'btn small neutral', '📋 ' + esc(t('send_copy')));
       copy.onclick = function () { copyText(msg); };
       rActions.appendChild(copy);
-      var waUrl = cl && C.whatsappLink(cl.phone, msg);
+      var waUrl = cl && C.whatsappLink(cl.phone, msg, state.settings.countryCode);
       if (waUrl) {
         var wa = el('a', 'btn small soft', '🟢 ' + esc(t('send_whatsapp')));
         wa.href = waUrl; wa.target = '_blank'; wa.rel = 'noopener';
@@ -799,8 +787,8 @@
   function copyText(text) {
     function done() { toast(t('copied_toast')); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); done(); });
-    } else { legacyCopy(text); done(); }
+      navigator.clipboard.writeText(text).then(done, function () { if (legacyCopy(text)) done(); else toast(lang() === 'ar' ? 'معرفتش أنسخ. حدّد النص بإيدك.' : 'Could not copy. Select the text manually.'); });
+    } else if (legacyCopy(text)) { done(); } else { toast(lang() === 'ar' ? 'معرفتش أنسخ. حدّد النص بإيدك.' : 'Could not copy. Select the text manually.'); }
   }
   function legacyCopy(text) {
     var ta = el('textarea');
@@ -808,8 +796,10 @@
     ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); } catch (e) {}
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
     ta.remove();
+    return ok;
   }
 
   function openPaymentForm(inv) {
@@ -820,7 +810,7 @@
       f.appendChild(input);
       return f;
     }
-    var amt = el('input'); amt.type = 'number'; amt.min = '0'; amt.step = '0.01'; amt.value = C.balance(inv);
+    var amt = el('input'); amt.type = 'text'; amt.inputMode = 'decimal'; amt.value = C.balance(inv);
     var date = el('input'); date.type = 'date'; date.value = today();
     var method = el('select');
     ['cash', 'transfer', 'wallet', 'card', 'other'].forEach(function (m) {
@@ -840,7 +830,7 @@
     body.insertBefore(fullBtn, body.firstChild);
 
     openModal(t('record_payment'), body, function () {
-      var amount = parseFloat(amt.value);
+      var amount = C.parseAmount(amt.value);
       if (!(amount > 0)) { toast(t('err_amount')); return false; }
       inv.payments.push({
         id: C.uid('pay'),
@@ -1055,7 +1045,7 @@
       var copy = el('button', 'btn small neutral', '📋 ' + esc(t('send_copy')));
       copy.onclick = function () { copyText(msg); };
       actions.appendChild(copy);
-      var waUrl = d.client && C.whatsappLink(d.client.phone, msg);
+      var waUrl = d.client && C.whatsappLink(d.client.phone, msg, state.settings.countryCode);
       if (waUrl) {
         var wa = el('a', 'btn small soft', '🟢 ' + esc(t('send_whatsapp')));
         wa.href = waUrl; wa.target = '_blank'; wa.rel = 'noopener';
@@ -1191,6 +1181,12 @@
     curSel.onchange = function () { s.currency = curSel.value; save(); toast(t('saved_toast')); };
     curF.appendChild(curSel);
     row.appendChild(curF);
+    var ccF = el('div', 'field');
+    ccF.appendChild(el('label', null, esc(lang() === 'ar' ? 'كود الدولة للواتساب' : 'WhatsApp country code')));
+    var ccIn = el('input'); ccIn.type = 'text'; ccIn.inputMode = 'numeric'; ccIn.maxLength = 4; ccIn.value = s.countryCode || '';
+    ccIn.onchange = function () { s.countryCode = C.latinDigits(ccIn.value).replace(/\D/g, '').slice(0, 4); ccIn.value = s.countryCode; save(); toast(t('saved_toast')); };
+    ccF.appendChild(ccIn);
+    row.appendChild(ccF);
     var langF = el('div', 'field');
     langF.appendChild(el('label', null, esc(t('language'))));
     var langSel = el('select');
@@ -1240,25 +1236,21 @@
         try {
           var d = JSON.parse(text);
           if (d.app === 'ta7seel-brandkit') {
-            ['businessName', 'logoEmoji', 'logoImage', 'accent', 'currency', 'lang'].forEach(function (k) {
-              if (d[k] !== undefined) s[k] = d[k];
+            var kit = {};
+            Object.keys(s).forEach(function (k) { kit[k] = s[k]; });
+            ['businessName', 'logoEmoji', 'logoImage', 'accent', 'currency', 'lang', 'countryCode', 'ladder', 'templates'].forEach(function (k) {
+              if (d[k] !== undefined) kit[k] = d[k];
             });
-            if (Array.isArray(d.ladder)) s.ladder = d.ladder;
-            if (d.templates) {
-              ['en', 'ar'].forEach(function (lng) {
-                if (d.templates[lng]) s.templates[lng] = Object.assign({}, I.TEMPLATES[lng], d.templates[lng]);
-              });
-            }
+            kit.templates = Object.assign({}, s.templates, d.templates && typeof d.templates === 'object' ? d.templates : {});
+            var clean = C.sanitizeSettings(kit, DEFAULT_SETTINGS, I.TEMPLATES);
+            Object.keys(clean).forEach(function (k) { s[k] = clean[k]; });
             save(); applyBrand(); buildNav(); route(); toast(t('import_ok'));
             return;
           }
           if (d.app !== 'ta7seel' || !Array.isArray(d.invoices)) throw new Error('bad file');
-          state.clients = d.clients || [];
-          state.invoices = d.invoices || [];
-          state.reminders = d.reminders || [];
-          if (d.settings) {
-            state.settings = Object.assign(freshState().settings, d.settings);
-          }
+          var next = C.sanitizeState(d, DEFAULT_SETTINGS, I.TEMPLATES);
+          if (!confirm(lang() === 'ar' ? 'هتستبدل كل بياناتك بالنسخة دي (' + next.invoices.length + ' فاتورة). متأكد؟' : 'Replace all your data with this backup (' + next.invoices.length + ' invoices)?')) return;
+          state = next;
           save(); applyBrand(); buildNav(); route(); toast(t('import_ok'));
         } catch (e) {
           toast(t('import_bad'));

@@ -348,10 +348,79 @@
     return errs;
   }
 
-  function whatsappLink(phone, text) {
-    var digits = String(phone || '').replace(/[^\d]/g, '');
-    if (!digits) return null;
-    return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(text || '');
+  /* ---------- sanitising (stored state and imported files) ---------- */
+
+  function latinDigits(v) {
+    return String(v == null ? '' : v).replace(/[\u0660-\u0669]/g, function (c) { return c.charCodeAt(0) - 0x0660; })
+      .replace(/[\u06F0-\u06F9]/g, function (c) { return c.charCodeAt(0) - 0x06F0; });
+  }
+  /** Parse a typed amount: Arabic digits, decimal comma or Arabic decimal mark. NaN when invalid. */
+  function parseAmount(v) {
+    var s = latinDigits(v).trim().replace(/[\u066B,]/g, '.').replace(/\u066C/g, '');
+    return /^\d+(\.\d+)?$|^\.\d+$/.test(s) ? parseFloat(s) : NaN;
+  }
+  function txt(v, max, fb) { return typeof v === 'string' ? v.slice(0, max) : (fb == null ? '' : fb); }
+  function amt(v, fb) { var n = Number(v); return isFinite(n) && n >= 0 && n <= 1e12 ? n : fb; }
+  var CURRENCY_OK = /^[A-Z]{3}$/;
+  var IMG_OK = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
+  var PAY_METHODS = ['cash', 'transfer', 'wallet', 'card', 'other'];
+  var DEFAULT_LEVEL_IDS = ['predue', 'due', 'nudge', 'firm', 'final', 'escalate'];
+
+  function sanitizeSettings(raw, defaults, templates) {
+    var r = raw && typeof raw === 'object' ? raw : {}, o = JSON.parse(JSON.stringify(defaults));
+    o.businessName = txt(r.businessName, 60, defaults.businessName).trim() || defaults.businessName;
+    o.logoEmoji = txt(r.logoEmoji, 8, defaults.logoEmoji) || defaults.logoEmoji;
+    o.logoImage = typeof r.logoImage === 'string' && r.logoImage.length < 300000 && IMG_OK.test(r.logoImage) ? r.logoImage : null;
+    o.accent = /^#[0-9a-fA-F]{6}$/.test(r.accent) ? r.accent : defaults.accent;
+    o.currency = CURRENCY_OK.test(r.currency) ? r.currency : defaults.currency;
+    o.lang = r.lang === 'en' ? 'en' : 'ar';
+    o.countryCode = latinDigits(r.countryCode == null ? defaults.countryCode : r.countryCode).replace(/\D/g, '').slice(0, 4);
+    var ladder = (Array.isArray(r.ladder) ? r.ladder : []).filter(function (l) { return l && DEFAULT_LEVEL_IDS.indexOf(l.id) >= 0 && isFinite(Number(l.offset)); })
+      .map(function (l) { return { id: l.id, offset: Math.max(-365, Math.min(365, Math.round(Number(l.offset)))), enabled: l.enabled !== false }; });
+    o.ladder = ladder.length ? ladder : defaultLadder();
+    var tp = r.templates && typeof r.templates === 'object' ? r.templates : {};
+    o.templates = {};
+    ['en', 'ar'].forEach(function (lng) {
+      var src = tp[lng] && typeof tp[lng] === 'object' ? tp[lng] : {}, out = {};
+      Object.keys(templates[lng]).forEach(function (k) { out[k] = typeof src[k] === 'string' && src[k].trim() ? src[k].slice(0, 1500) : templates[lng][k]; });
+      o.templates[lng] = out;
+    });
+    return o;
+  }
+
+  function sanitizeState(raw, defaults, templates) {
+    var r = raw && typeof raw === 'object' ? raw : {};
+    var clients = [], cids = {};
+    (Array.isArray(r.clients) ? r.clients : []).forEach(function (c) {
+      if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !c.id || cids[c.id]) return;
+      var name = txt(c.name, 80).trim(); if (!name) return;
+      cids[c.id] = 1;
+      clients.push({ id: c.id.slice(0, 60), name: name, company: txt(c.company, 80), phone: txt(c.phone, 30), email: txt(c.email, 120), notes: txt(c.notes, 1000), createdAt: txt(c.createdAt, 40) });
+    });
+    var invoices = [], iids = {};
+    (Array.isArray(r.invoices) ? r.invoices : []).forEach(function (i) {
+      if (!i || typeof i !== 'object' || typeof i.id !== 'string' || !i.id || iids[i.id]) return;
+      var amount = amt(i.amount, null);
+      if (amount === null || !cids[i.clientId] || isNaN(parseDate(i.issueDate)) || isNaN(parseDate(i.dueDate))) return;
+      iids[i.id] = 1;
+      var pays = (Array.isArray(i.payments) ? i.payments : []).filter(function (p) { return p && typeof p === 'object' && amt(p.amount, null) !== null && amt(p.amount, 0) > 0; }).map(function (p, n) {
+        return { id: txt(p.id, 60) || ('pay-' + n), date: isNaN(parseDate(p.date)) ? i.issueDate : p.date, amount: round2(Number(p.amount)), method: PAY_METHODS.indexOf(p.method) >= 0 ? p.method : 'other', note: txt(p.note, 200) };
+      });
+      invoices.push({ id: i.id.slice(0, 60), number: txt(i.number, 30).trim() || 'INV', clientId: i.clientId, description: txt(i.description, 300), amount: amount, issueDate: i.issueDate, dueDate: i.dueDate,
+        baseStatus: i.baseStatus === 'draft' ? 'draft' : 'sent', payments: pays, createdAt: txt(i.createdAt, 40) });
+    });
+    var reminders = (Array.isArray(r.reminders) ? r.reminders : []).filter(function (m) { return m && typeof m === 'object' && iids[m.invoiceId]; })
+      .map(function (m, n) { return { id: txt(m.id, 60) || ('rem-' + n), invoiceId: m.invoiceId, levelId: DEFAULT_LEVEL_IDS.indexOf(m.levelId) >= 0 ? m.levelId : 'nudge', channel: m.channel === 'whatsapp' ? 'whatsapp' : 'manual', sentAt: txt(m.sentAt, 40) }; });
+    return { settings: sanitizeSettings(r.settings, defaults, templates), clients: clients, invoices: invoices, reminders: reminders };
+  }
+
+  function whatsappLink(phone, text, cc) {
+    var d = latinDigits(phone).replace(/[^\d]/g, '');
+    if (!d) return null;
+    cc = latinDigits(cc == null ? '' : cc).replace(/\D/g, '');
+    if (d.indexOf('00') === 0) d = d.slice(2);
+    else if (d.charAt(0) === '0' && cc) d = cc + d.slice(1);
+    return 'https://wa.me/' + d + '?text=' + encodeURIComponent(text || '');
   }
 
   return {
@@ -369,6 +438,7 @@
     kpis: kpis, agingReport: agingReport, collectedByMonth: collectedByMonth,
     invoicesToCSV: invoicesToCSV, csvEscape: csvEscape,
     uid: uid, nextInvoiceNumber: nextInvoiceNumber,
-    validateInvoice: validateInvoice, whatsappLink: whatsappLink
+    validateInvoice: validateInvoice, whatsappLink: whatsappLink,
+    sanitizeState: sanitizeState, sanitizeSettings: sanitizeSettings, parseAmount: parseAmount, latinDigits: latinDigits
   };
 });

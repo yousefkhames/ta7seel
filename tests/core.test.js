@@ -264,3 +264,29 @@ test('t() interpolates vars and falls back to en', () => {
   assert.equal(I.t('ar', 'days_over', { n: 5 }), 'متأخرة 5 يوم');
   assert.equal(I.t('ar', 'nonexistent_key'), 'nonexistent_key');
 });
+
+test('whatsappLink adds the country code to local numbers and reads Arabic digits', () => {
+  assert.equal(C.whatsappLink('01001234567', 'hi', '20'), 'https://wa.me/201001234567?text=hi');
+  assert.equal(C.whatsappLink('٠١٠٠١٢٣٤٥٦٧', 'x', '20'), 'https://wa.me/201001234567?text=x');
+  assert.equal(C.whatsappLink('+20 100 123 4567', 'x', '20'), 'https://wa.me/201001234567?text=x');
+  assert.equal(C.whatsappLink('00201001234567', 'x', '20'), 'https://wa.me/201001234567?text=x');
+  assert.equal(C.whatsappLink('', 'x', '20'), null);
+});
+test('parseAmount: Arabic digits, decimal comma, junk', () => {
+  assert.equal(C.parseAmount('١٢٫٥'), 12.5); assert.equal(C.parseAmount('1,5'), 1.5);
+  assert.ok(isNaN(C.parseAmount('abc'))); assert.ok(isNaN(C.parseAmount('-4'))); assert.ok(isNaN(C.parseAmount('')));
+});
+test('sanitizeState rebuilds hostile data', () => {
+  const D = { businessName: 'T', logoEmoji: 'x', logoImage: null, accent: '#0f766e', currency: 'EGP', lang: 'ar', countryCode: '20', ladder: C.defaultLadder(), templates: I.TEMPLATES };
+  const st = C.sanitizeState({
+    settings: { businessName: 5, logoImage: 'javascript:alert(1)', accent: 'url(x)', currency: 'ZZZZZ', ladder: 'no', templates: { en: { due: 7 } } },
+    clients: [null, { id: 'c1', name: 'Ali' }, { id: 'c1', name: 'dup' }, { id: 'c2' }],
+    invoices: [{ id: 'i1', clientId: 'c1', amount: '500', issueDate: '2026-11-01', dueDate: '2026-11-10', payments: [{ amount: -5 }, { amount: 100, method: 'x' }] }, { id: 'i2', clientId: 'ghost', amount: 5, issueDate: '2026-11-01', dueDate: '2026-11-10' }, { id: 'i3', clientId: 'c1', amount: 5, issueDate: 'bad', dueDate: '2026-11-10' }],
+    reminders: [{ invoiceId: 'i1', levelId: 'zzz', channel: 'carrier-pigeon' }, { invoiceId: 'nope' }]
+  }, D, I.TEMPLATES);
+  assert.equal(st.clients.length, 1); assert.equal(st.invoices.length, 1); assert.equal(st.invoices[0].amount, 500);
+  assert.equal(st.invoices[0].payments.length, 1); assert.equal(st.invoices[0].payments[0].method, 'other');
+  assert.equal(st.reminders.length, 1); assert.equal(st.reminders[0].channel, 'manual');
+  assert.equal(st.settings.logoImage, null); assert.equal(st.settings.accent, '#0f766e'); assert.equal(st.settings.currency, 'EGP');
+  assert.equal(st.settings.ladder.length, 6); assert.equal(st.settings.templates.en.due, I.TEMPLATES.en.due);
+});
