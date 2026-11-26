@@ -49,7 +49,7 @@ Plain HTML/CSS/JS. No frameworks, no build step, no dependencies beyond a Google
 Run the tests:
 
 ```bash
-node --test tests/
+node --test tests/core.test.js
 ```
 
 ## Honest limits
