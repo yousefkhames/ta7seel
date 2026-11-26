@@ -119,6 +119,9 @@ button { cursor: pointer; }
 }
 .lang-toggle:hover { background: rgba(255,255,255,.08); }
 
+.topbar-lang { flex-shrink: 0; }
+@media (min-width: 860px) { .topbar-lang { display: none; } }
+
 /* ---------- cards & grids ---------- */
 
 .card {

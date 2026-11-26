@@ -179,6 +179,13 @@
     $('#page-title').textContent = t(r.title);
     var actions = $('#topbar-actions');
     actions.innerHTML = '';
+    var langBtn = el('button', 'btn neutral small topbar-lang', lang() === 'ar' ? 'EN' : 'عربي');
+    langBtn.type = 'button';
+    langBtn.onclick = function () {
+      state.settings.lang = lang() === 'ar' ? 'en' : 'ar';
+      save(); applyBrand(); buildNav(); route();
+    };
+    actions.appendChild(langBtn);
     var view = $('#view');
     view.innerHTML = '';
     r.render(view, hash);
@@ -919,7 +926,7 @@
     var phone = el('input'); phone.value = c.phone || ''; phone.dir = 'ltr'; phone.placeholder = '+2010…';
     var email = el('input'); email.type = 'email'; email.value = c.email || ''; email.dir = 'ltr';
     var notes = el('textarea'); notes.value = c.notes || ''; notes.rows = 2;
-    body.appendChild(field(t('client_since') === 'client' ? (lang() === 'ar' ? 'الاسم' : 'Name') : 'Name', name));
+    body.appendChild(field(t('name'), name));
     body.appendChild(field(t('company'), company));
     body.appendChild(field(t('phone') + ' (WhatsApp)', phone));
     body.appendChild(field(t('email'), email));
@@ -1067,12 +1074,13 @@
       view.appendChild(card);
     });
 
-    // upcoming
+    // upcoming: earliest future reminder per invoice
     var upcoming = [];
     state.invoices.forEach(function (inv) {
       if (!C.isOpen(inv, t0)) return;
       var current = C.nextReminder(inv, state.settings.ladder, state.reminders, t0);
       if (current) return; // already actionable
+      var best = null;
       state.settings.ladder.forEach(function (lv) {
         if (!lv.enabled) return;
         var rd = C.reminderDate(inv, lv);
@@ -1080,8 +1088,11 @@
         var sent = state.reminders.some(function (r) { return r.invoiceId === inv.id && r.levelId === lv.id; });
         if (sent) return;
         var inDays = C.diffDays(t0, rd);
-        if (inDays > 0 && inDays <= 7) upcoming.push({ invoice: inv, client: clientById(inv.clientId), level: lv, date: rd, inDays: inDays });
+        if (inDays > 0 && inDays <= 7 && (!best || rd < best.date)) {
+          best = { invoice: inv, client: clientById(inv.clientId), level: lv, date: rd, inDays: inDays };
+        }
       });
+      if (best) upcoming.push(best);
     });
     upcoming.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     if (upcoming.length) {
