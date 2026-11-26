@@ -286,7 +286,7 @@ html[dir="rtl"] .drawer { transform: translateX(0); }
 .spark .col i {
   display: block; width: 100%; max-width: 34px; border-radius: 6px 6px 3px 3px;
   background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 55%, white));
-  min-height: 3px;
+  height: 3px;
 }
 .spark .col span { font-size: .62rem; color: var(--ink-3); font-weight: 700; }
 

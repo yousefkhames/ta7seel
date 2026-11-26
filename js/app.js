@@ -304,7 +304,8 @@
     months.forEach(function (m) {
       var col = el('div', 'col');
       var bar = el('i');
-      bar.style.height = Math.max(4, Math.round(m.total / mMax * 100)) + '%';
+      // pixel heights: percentage heights collapse in this grid context
+      bar.style.height = Math.max(3, Math.round(m.total / mMax * 60)) + 'px';
       bar.title = money(m.total);
       col.appendChild(bar);
       var lbl = m.month.slice(5) + '/' + m.month.slice(2, 4);
