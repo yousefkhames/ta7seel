@@ -11,6 +11,15 @@ No sign-up, no server, no cost. Open the link and your data stays in your own br
 
 ---
 
+## Screenshots
+
+Captured from the live site (https://yousefkhames.github.io/ta7seel/).
+
+<p>
+  <img src="docs/screenshots/live-desktop.png" alt="ta7seel desktop view" width="640">
+  <img src="docs/screenshots/live-mobile.png" alt="ta7seel mobile view" width="200">
+</p>
+
 ## The problem
 
 Freelancers lose real money not because clients refuse to pay, but because following up is awkward and easy to postpone. Ta7seel turns "I should probably remind them" into a list of specific messages, ready today, in your client's language.
