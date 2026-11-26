@@ -72,3 +72,4 @@ node --test tests/core.test.js
 - Inputs accept Arabic-Indic digits and decimal commas; absurd values are ignored instead of breaking totals.
 - Backup import is sanitised and asks for confirmation before replacing data; failed saves show a message.
 - Limits: WhatsApp links are only checked as generated wa.me URLs (not opened in the WhatsApp app); no cloud sync, data stays in this browser.
+- Offline: a service worker precaches the app shell and the bundled fonts (added in round 2 review).
