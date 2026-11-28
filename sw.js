@@ -1,5 +1,5 @@
 /* ta7seel service worker: shell and fonts precached, network-first for the rest. */
-const CACHE = 'ta7seel-v1';
+const CACHE = 'ta7seel-v2';
 const ASSETS = [
   './',
   'assets/logo.svg',

@@ -82,3 +82,10 @@ node --test tests/core.test.js
 - Backup import is sanitised and asks for confirmation before replacing data; failed saves show a message.
 - Limits: WhatsApp links are only checked as generated wa.me URLs (not opened in the WhatsApp app); no cloud sync, data stays in this browser.
 - Offline: a service worker precaches the app shell and the bundled fonts (added in round 2 review).
+
+
+## Demo / portfolio project
+
+Static GitHub Pages site. Data stays in your browser. Sample data is fictional and results are not professional, legal, medical or financial advice.
+
+By Yousef Khames · من تطوير يوسف خميس
